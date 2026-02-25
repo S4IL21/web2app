@@ -1,42 +1,69 @@
-# web2app
-PyPI package for converting a website into an app.
+# web2app - modified by S4IL
+
+PyPI package for converting a website **or local HTML file** into a Windows desktop app.
+
+---
 
 ## Installation
 
-Download from pip:
+Install from pip:
 
-```shell
+```bash
 pip install web2app
 ```
 
+---
+
 ## Usage
 
-You can turn your website into an app as easy as this:
+### Convert a Website
+
+Turn a website into an app:
 
 ```python
 from web2app import Web2Exe
 
 exe = Web2Exe("https://www.google.com/")
+exe.create(output_dir="output")
+```
+
+The app name is inferred from the page `<title>`, and the favicon is used as the icon.
+
+---
+
+### Convert a Local HTML File
+
+You can also package a local HTML file:
+
+```python
+from web2app import Web2Exe
+
+exe = Web2Exe("index.html")
+exe.create(output_dir="output")
+```
+
+Local files are automatically converted to a `file:///` URI and loaded into the app.
+
+---
+
+### Custom Name and Icon
+
+You can specify a custom name and icon:
+
+```python
+exe = Web2Exe(
+    url="https://www.google.com/",
+    name="Google",
+    icon="assets/logo512.png",
+)
 
 exe.create(output_dir="output")
 ```
 
-This infers the application icon and name from the `<title>` of the website, and the favicon from the site.
+The `icon` parameter accepts:
 
-You can also specify a custom favicon and app name:
+* A file path
+* A `PIL.Image` object
+* A `BytesIO` object containing image data
 
-```python
-exe = Web2Exe(
-  name="Google",
-  url="https://www.google.com/",
-  icon="assets/logo512.png",
-)
-```
-
-You can specify the `icon` object as a path to an icon, a PIL.Image object, or a BytesIO containing valid image data.
-
-
-
-
-
-# Made it so you can also use local html files - S4IL
+## Made it so you can also use local HTML files – S4IL
