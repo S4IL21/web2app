@@ -34,3 +34,9 @@ exe = Web2Exe(
 ```
 
 You can specify the `icon` object as a path to an icon, a PIL.Image object, or a BytesIO containing valid image data.
+
+
+
+
+
+# Made it so you can also use local html files - S4IL
