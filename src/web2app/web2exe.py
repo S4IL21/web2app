@@ -25,45 +25,70 @@ class Web2Exe:
     This class helps package a website into an executable.
     """
 
-    def __init__(
-        self,
-        url: str,
-        name: str = "",
-        icon: typing.Union[str, pathlib.Path, Image.Image, io.BytesIO] = "",
-    ) -> None:
-        """
-        Initialize a new Web2Exe instance.
+def __init__(
+    self,
+    url: str,
+    name: str = "",
+    icon: typing.Union[str, pathlib.Path, Image.Image, io.BytesIO] = "",
+) -> None:
 
-        Args:
-            url (str): The URL of the site. **Required**.
-            name (str, optional): The name of the executable. If not specified, the site's `<title>` is used.
-            icon (str | pathlib.Path | PIL.Image.Image | io.BytesIO, optional): Path, URL, PIL.Image, or io.BytesIO object for the icon. 
-                If not specified, the favicon from the site URL is used.
-        """
+    self.original_input = url
+    self.is_local = False
 
-
+    # Detect local file
+    if os.path.exists(url):
+        self.is_local = True
+        self.local_path = os.path.abspath(url)
+        self.url = pathlib.Path(self.local_path).as_uri()  # file:/// URI
+        with open(self.local_path, "r", encoding="utf-8", errors="ignore") as f:
+            html_content = f.read()
+        self.soup = BeautifulSoup(html_content, "html.parser")
+    else:
+        # Treat as web URL
         self.url = url
+        response = requests.get(url)
+        response.raise_for_status()
+        self.soup = BeautifulSoup(response.text, "html.parser")
 
-        if (not name) or (not icon):
-            response = requests.get(url)
-            response.raise_for_status()
-            self.soup = BeautifulSoup(response.text, "html.parser")
-
-        # Handle name
-        if not name:
-            soup = self.soup
-            if soup.title and soup.title.string:
-                self.name = soup.title.string.strip()
-                logger.warning("`name` not specified, defaulting to title from site URL: %s", self.name)
-            else:
-                raise TitleNotFound(f"No <title> found at {url} and no name provided.")
+    # --------------------
+    # Handle name
+    # --------------------
+    if not name:
+        if self.soup.title and self.soup.title.string:
+            self.name = self.soup.title.string.strip()
+            logger.warning("`name` not specified, defaulting to title: %s", self.name)
         else:
-            self.name = name
+            raise TitleNotFound(f"No <title> found and no name provided.")
+    else:
+        self.name = name
 
-        # Handle icon
-        if not icon:
-            soup = self.soup
-            icon_link = soup.find("link", rel=lambda x: x and "icon" in x.lower())
+    # --------------------
+    # Handle icon
+    # --------------------
+    if not icon:
+        icon_link = self.soup.find("link", rel=lambda x: x and "icon" in x.lower())
+
+        if self.is_local:
+            # Try local favicon
+            if icon_link and icon_link.has_attr("href"):
+                favicon_path = os.path.join(
+                    os.path.dirname(self.local_path),
+                    icon_link["href"]
+                )
+            else:
+                favicon_path = os.path.join(
+                    os.path.dirname(self.local_path),
+                    "favicon.ico"
+                )
+
+            if os.path.exists(favicon_path):
+                self.icon = Image.open(favicon_path)
+            else:
+                raise FaviconNotFound(
+                    "No local favicon found and no icon provided."
+                )
+        else:
+            # Web favicon
             if icon_link and icon_link.has_attr("href"):
                 favicon_url = urljoin(url, icon_link["href"])
             else:
@@ -71,23 +96,28 @@ class Web2Exe:
 
             res = requests.get(favicon_url)
             if res.status_code != 200:
-                raise FaviconNotFound(f"No favicon found at {favicon_url} and no icon provided.")
-            self.icon = io.BytesIO(res.content)
-            logger.warning("`icon` not specified, defaulting to favicon from site URL.")
-        else:
-            self.icon = icon
+                raise FaviconNotFound(
+                    f"No favicon found at {favicon_url} and no icon provided."
+                )
 
-        # Format icon into PIL.Image
-        match type(self.icon):
-            case Image.Image:
-                pass
-            case io.BytesIO:
-                self.icon = Image.open(self.icon)
-            case pathlib.Path:
-                self.icon = Image.open(self.icon)
-            case str:
-                self.icon = Image.open(self.icon)
+            self.icon = Image.open(io.BytesIO(res.content))
+            logger.warning("`icon` not specified, defaulting to favicon.")
 
+    else:
+        self.icon = icon
+
+    # --------------------
+    # Normalize icon into PIL.Image
+    # --------------------
+    match type(self.icon):
+        case Image.Image:
+            pass
+        case io.BytesIO:
+            self.icon = Image.open(self.icon)
+        case pathlib.Path:
+            self.icon = Image.open(self.icon)
+        case str:
+            self.icon = Image.open(self.icon)
 
     def create(
         self,
